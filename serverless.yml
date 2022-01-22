@@ -1,0 +1,63 @@
+service: event-messages
+
+frameworkVersion: '2'
+
+variablesResolutionMode: 20210326
+configValidationMode: error
+
+plugins:
+  - serverless-localstack
+  - serverless-plugin-tracing
+  - serverless-prune-plugin
+custom:
+  auth0audience: ${ssm:/event-messages/auth0audience/${self:custom.stage}}
+  stage: ${opt:stage, 'dev'}
+  localstack:
+    debug: true
+    stages:
+      - local
+  prune:
+    automatic: true
+    number: 3
+
+provider:
+  name: aws
+  runtime: go1.x
+  lambdaHashingVersion: 20201221
+  tracing:
+    apiGateway: true
+    lambda: true
+  iamRoleStatements:
+    - Effect: 'Allow'
+      Action:
+        - 's3:*'
+      Resource: "arn:aws:s3:::*/*"
+    - Effect: 'Allow'
+      Action:
+        - 's3:ListBucket'
+        - 's3:CreateBucket'
+      Resource: "arn:aws:s3:::*"
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-1'}
+  apiGateway:
+    shouldStartNameWithService: true
+  environment:
+    REGION: ${opt:region, 'us-east-1'}
+
+functions:
+  eventMessagesApi:
+    name: ${self:service}-api-${sls:stage}
+    handler: bin/event-messages-api
+    runtime: go1.x
+    memorySize: 512
+    environment:
+      ENV1: y4
+      STAGE: ${sls:stage}
+      AUTH0AUDIENCE: ${self:custom.auth0audience}
+    events:
+      - http:
+          path: /read/{topic}
+          method: get
+      - http:
+          path: /write/{topic}
+          method: post
